@@ -1,4 +1,4 @@
--- Build user-level lifecycle features from events_staging.
+-- Feature layer for user-level lifecycle analytics from events_staging.
 
 CREATE OR REPLACE TABLE user_features AS
 WITH event_base AS (
@@ -24,33 +24,13 @@ SELECT
     user_id,
     total_events,
     last_event_time,
-    DATE_DIFF('day', CAST(last_event_time AS DATE), CURRENT_DATE) AS days_since_last_event,
+    CURRENT_DATE - CAST(last_event_time AS DATE) AS days_since_last_event,
     product_views,
     add_to_cart,
     purchases,
-    CASE
-        WHEN product_views > 0 THEN add_to_cart::DOUBLE / product_views
-        ELSE 0.0
-    END AS view_to_cart_rate,
-    CASE
-        WHEN add_to_cart > 0 THEN purchases::DOUBLE / add_to_cart
-        ELSE 0.0
-    END AS cart_to_purchase_rate,
-    CASE
-        WHEN DATE_DIFF('day', CAST(last_event_time AS DATE), CURRENT_DATE) <= 7 THEN TRUE
-        ELSE FALSE
-    END AS is_active_user,
-    CASE
-        WHEN add_to_cart > 2 AND purchases = 0 THEN TRUE
-        ELSE FALSE
-    END AS is_high_intent,
-    CASE
-        WHEN DATE_DIFF('day', CAST(last_event_time AS DATE), CURRENT_DATE) > 14 THEN TRUE
-        ELSE FALSE
-    END AS is_churn_risk
+    COALESCE(add_to_cart::DOUBLE / NULLIF(product_views, 0), 0.0) AS view_to_cart_rate,
+    COALESCE(purchases::DOUBLE / NULLIF(add_to_cart, 0), 0.0) AS cart_to_purchase_rate,
+    (CURRENT_DATE - CAST(last_event_time AS DATE) <= 7) AS is_active_user,
+    (add_to_cart >= 2 AND purchases = 0) AS is_high_intent,
+    (CURRENT_DATE - CAST(last_event_time AS DATE) > 14) AS is_churn_risk
 FROM user_agg;
-
-SELECT *
-FROM user_features
-ORDER BY total_events DESC, user_id
-LIMIT 10;
