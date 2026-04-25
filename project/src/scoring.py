@@ -1,22 +1,58 @@
-"""Scoring placeholders for propensity and lifecycle metrics."""
+"""Scoring engine for lifecycle intent and recommended actions."""
 
-import logging
+from __future__ import annotations
 
-LOGGER_NAME = "lifecycle_intelligence"
+from pathlib import Path
 
+from data_loader import configure_logging, get_connection
 
-def configure_logging(level: int = logging.INFO) -> logging.Logger:
-    """Return a logger configured for the scoring module."""
-    logger = logging.getLogger(LOGGER_NAME)
-    if not logger.handlers:
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-        )
-    return logger
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SCORING_SQL_PATH = PROJECT_ROOT / "sql" / "scoring.sql"
 
 
-def score_entities() -> None:
-    """Placeholder for computing lifecycle scores for entities."""
+def create_user_scores(sql_path: Path | str = SCORING_SQL_PATH) -> None:
+    """Create or replace ``user_scores`` from ``user_features`` using DuckDB SQL."""
     logger = configure_logging()
-    logger.info("Scoring placeholder called")
+    logger.info("Starting score generation")
+
+    sql_file = Path(sql_path)
+    if not sql_file.exists():
+        raise FileNotFoundError(f"Scoring SQL file not found: {sql_file}")
+
+    sql_text = sql_file.read_text(encoding="utf-8")
+    with get_connection() as conn:
+        conn.execute(sql_text)
+
+    logger.info("Completed score generation")
+
+
+def print_user_scores_sample(limit: int = 10) -> None:
+    """Print sample rows from ``user_scores`` for inspection."""
+    logger = configure_logging()
+    logger.info("Printing user_scores sample (limit=%s)", limit)
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM user_scores
+            LIMIT ?
+            """,
+            [limit],
+        ).fetchall()
+        columns = [col[0] for col in conn.description]
+
+    print("\n=== user_scores Sample ===")
+    print(" | ".join(columns))
+    for row in rows:
+        print(" | ".join(str(value) for value in row))
+
+
+def main() -> None:
+    """Run scoring and print sample output."""
+    create_user_scores()
+    print_user_scores_sample(limit=10)
+
+
+if __name__ == "__main__":
+    main()
