@@ -1,2 +1,12 @@
+# Data
+data/
+*.csv
+
+# Environment
+.env
+
+# DB
+*.db
+
+# Python cache
 __pycache__/
-*.pyc
